@@ -1,0 +1,61 @@
+Project things to talk about:
+
+Important things to add:
+ - Figures and results
+ - Sources
+ 
+ 
+Sources used:
+https://acrobat.adobe.com/link/file/?orderBy=modified&sortOrder=descending&theme=dark&uri=urn%3Aaaid%3Asc%3AUS%3Ae72da8df-76df-4f0d-93d0-5fea73fc81aa&filetype=application%2Fpdf&size=303067
+
+These notes are from this source from here
+---------------------------------------------------------------------------------------------------------------------------------------
+
+
+Special things about CNNs and text classification:
+ - ConvNets are useful for extracting information from raw signals, ranging from CV to speech recognition (often shaped data).
+ - I am going to try it with one-dimensional data, which is text, to see if it is possible to get sensible prediction on hate speech
+ - Convnets may require large-scale datasets - larger than what I have chosen, we'll see
+ - From an article, it stated that Convnets don't need full words to classify, but can do it at a character level. I will attempt this approach
+ - The benefits to working on character level is that it can work for different languages, since characters consititue necessary construct
+ regardless segmentation is possible. Misspelling and emoticon combinations may also be automatically learnt
+ - If we changed input in CNN, the property equiverance to translation says the output will be changed in same way (good if multiple langs 
+ have different patterns - my hypothesis)
+
+DATA OVERVIEW:
+I work with 25000 tweets which are labeled with hate speech
+
+columns in order:
+ # index (Which tweet)
+ # count (Number of users who coded each tweet)
+ # hater_speech (Number of users who judged the tweet to be hate speech)
+ # offensive_language (Number of users who judged the tweet to be offensive
+ # neither (Number of users who judged the tweet to be neither offensive nor non-offensive
+ # class (class label for majority of CF users 0 - hate speech, 1 - offensive language, 2 - neither)
+ # tweet (Text tweet)
+ 
+ 
+ CNN NOTES:
+ 
+ Labels/targets/classes(?):
+ Offensive language, hate speech, neither
+ 
+ 
+ Temporal max pooling can be good for deeper models
+ h(y)=kmax x=1 g(y·d−x+c), where Convnet is deeper than 6 layers
+ 
+ Method:
+ Stochastic gradient descent (SGD), minibatch of size 128, momentum 0.9, initial step size 0.01 (halved every 3 epochs for 10 times).
+ Each epoch has fixed number of random training samples uniformly sampled across classes (each dataset). 
+ Implementation with Torch 7
+ 
+ 
+ Input: Sequence of encoded characters as input
+ Encoding: Alphabet of size m
+ One hot encode each character
+ Sequence of characters is transformed to sequence of such m sized vectors with fixed length l0, any characters longer than l0 will be ignored.
+ Any non-alphabetic characters and blank characters are quantified as all-zero vectors
+ Latest reading gets put in beginning of output to get 
+ 
+
+
