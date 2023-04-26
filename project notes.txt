@@ -21,6 +21,32 @@ Special things about CNNs and text classification:
  regardless segmentation is possible. Misspelling and emoticon combinations may also be automatically learnt
  - If we changed input in CNN, the property equiverance to translation says the output will be changed in same way (good if multiple langs 
  have different patterns - my hypothesis)
+ 
+ 
+ BERT:
+ - Good for masked language modeling (MLM) objective, not generating text which is a good task for CLM
+ - BERT was trained using next sentence prediction (NSP) objective using [CLS] token as sequence approximate. Users
+ may use this token to get sequence prediction rather than token prediction. 
+ - Unsupervised model
+ - Since BERT is pretrained on a general social media content, need to analyze contextual information from the pre-trained
+ layers and fine tune using annotated datasets. We update the weights using a labelled dataset that is new to
+ the BERT model. 
+ - Input: Two embedding types, [CLS] and [SEP]. [CLS] is the only one I used, since it contains special classification
+ embeddingwhich we take the first token [CLS] in the final hidden layer as the representation of the whole sequence
+ in hate speech classification task.
+ - May have to train a classifier with different layers of 768 dimensions on top of pretrained BERTbase trasnformer
+ to minimize task-specific parameters.
+
+HATE AND OFFENSIVE DATA
+Identifying hate and offensive data is a challenge due to lack of undisputed labeled data. Also, the inability to
+surface features to capture subtle semantics in text. To address this,
+we use pretrained model BERT for hate speech classification, fine tuning specific task by leveraging information
+from different transformer encoders.
+
+My thoughts about how to implement good model with characters as input in CNN for hate classificiation:
+ - Some words in hate speech has similar patterns, 
+
+
 
 DATA OVERVIEW:
 I work with 25000 tweets which are labeled with hate speech
@@ -38,16 +64,14 @@ columns in order:
  CNN NOTES:
  
  Labels/targets/classes(?):
- Offensive language, hate speech, neither
- 
- 
- Temporal max pooling can be good for deeper models
- h(y)=kmax x=1 g(y·d−x+c), where Convnet is deeper than 6 layers
+ Offensive language, hate speech, neither (racism? sexism? neither?)
  
  Method:
  Stochastic gradient descent (SGD), minibatch of size 128, momentum 0.9, initial step size 0.01 (halved every 3 epochs for 10 times).
+ Temporal max pooling (can be good for deeper models) (h(y)=kmax x=1 g(y·d−x+c), where Convnet is deeper than 6 layers)
  Each epoch has fixed number of random training samples uniformly sampled across classes (each dataset). 
  Implementation with Torch 7
+
  
  
  Input: Sequence of encoded characters as input
@@ -55,7 +79,18 @@ columns in order:
  One hot encode each character
  Sequence of characters is transformed to sequence of such m sized vectors with fixed length l0, any characters longer than l0 will be ignored.
  Any non-alphabetic characters and blank characters are quantified as all-zero vectors
- Latest reading gets put in beginning of output to get 
+ Latest reading gets put in beginning of output (backward quantization)
  
+Non-space characters in alphabet used: 
+abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:’’’/\|_@#$%ˆ&*˜‘+-=<>()[]{} 
+70 characters, including 26 english letters , 10 digits, 33 other characters and the newline character
 
+Model design
+1 small convnet
+9 layers deep with 6 convolutional layers and 3 fully connected layers
+70 different features as input
+Input feature length of 1014
 
+Fine tuning
+ - Lower levels of BERT model may contain general info, where higher is more task specific
+ - 
