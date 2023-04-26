@@ -1,6 +1,8 @@
+import gc
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, accuracy_score
 import torch
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy
@@ -10,7 +12,6 @@ from bertCNN import BertCNN
 from preprocessingdata import load_process_data
 
 # Define the training parameters
-epochs = 3
 num_classes = 7
 batch_size = 32
 learning_rate = 2e-5
@@ -72,7 +73,10 @@ train_data = TensorDataset(train_seq, train_mask, train_y)
 train_sampler = RandomSampler(train_data)
 
 train_loader = DataLoader(
-    train_seq, batch_size=batch_size, shuffle=True)
+    train_data, sampler=train_sampler, batch_size=batch_size)
+
+# loss function
+cross_entropy = torch.nn.NLLLoss()
 
 # wrap tensors
 val_data = TensorDataset(val_seq, val_mask, val_y)
@@ -81,89 +85,148 @@ val_data = TensorDataset(val_seq, val_mask, val_y)
 val_sampler = SequentialSampler(val_data)
 
 valid_loader = DataLoader(
-    val_seq, batch_size=batch_size)
+    val_data, sampler=val_sampler, batch_size=batch_size)
 
 test_data = TensorDataset(test_seq, test_mask, test_y)
 
 test_sampler = SequentialSampler(test_data)
 
 test_loader = DataLoader(
-    test_seq, batch_size=batch_size)
+    test_seq, sampler=test_sampler, batch_size=batch_size)
 
 # train the model
-num_epochs = 10
-for epoch in range(num_epochs):
+def train():
     # set the model to train mode
     model.train()
+    total_loss, total_accuracy = 0, 0
+
+    # empty list to save model predictions
+    total_preds = []
 
     # iterate over the training dataloader
     for i, batch in enumerate(train_loader):
         step = i+1
-        print(batch)
-        
+        batch = [r.to(device) for r in batch]
+        sent_id, mask, labels = batch
+        del batch
+        gc.collect()
+        torch.cuda.empty_cache()
+        # clear previously calculated gradients
+        model.zero_grad()
         # forward pass
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+        print("FORWARD SHAPES:")
+        print(sent_id)
+        preds = model(sent_id.to(device).long(), mask)
         
         # compute the loss
-        loss = loss_fn(outputs.logits, labels)
+        loss = loss_fn(preds, labels)
+
+        total_loss += float(loss.item())
 
         # backward pass and update the weights
-        optimizer.zero_grad()
         loss.backward()
+
+        # clip the the gradients to 1.0. It helps in preventing the exploding gradient problem
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
         optimizer.step()
 
-    # set the model to evaluation mode
+        # model predictions are stored on GPU. So, push it to CPU
+        # append the model predictions
+        total_preds.append(preds.detach().cpu().numpy())
+
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        
+
+        # compute the training loss of the epoch
+        avg_loss = total_loss / (len(train_loader)*batch_size)
+
+        # predictions are in the form of (no. of batches, size of batch, no. of classes).
+        # reshape the predictions in form of (number of samples, no. of classes)
+        total_preds = np.concatenate(total_preds, axis=0)
+
+        # returns the loss and predictions
+    return avg_loss, total_preds
+
+def evaluate():
+    print("\n\nEvaluating...")
+    # deactivate dropout layers
     model.eval()
+    total_loss, total_accuracy = 0, 0
+    # empty list to save the model predictions
+    total_preds = []
+    # iterate over batches
+    total = len(valid_loader)
+    for i, batch in enumerate(valid_loader):
+        step = i+1
+        percent = "{0:.2f}".format(100 * (step / float(total)))
+        lossp = "{0:.2f}".format(total_loss/(total*batch_size))
+        filledLength = int(100 * step // total)
+        bar = '█' * filledLength + '>' * (filledLength < 100) + '.' * (99 - filledLength)
+        print(f'\rBatch {step}/{total} |{bar}| {percent}% complete, loss={lossp}, accuracy={total_accuracy}', end='')
+        # push the batch to gpu
+        batch = [t.to(device) for t in batch]
+        sent_id, mask, labels = batch
+        del batch
+        gc.collect()
+        torch.cuda.empty_cache()
+        # deactivate autograd
+        with torch.no_grad():
+            # model predictions
+            preds = model(sent_id, mask)
+            # compute the validation loss between actual and predicted values
+            loss = cross_entropy(preds, labels)
+            total_loss += float(loss.item())
+            total_preds.append(preds.detach().cpu().numpy())
 
-    # track the validation loss and accuracy
-    valid_loss = 0.0
-    valid_acc = 0.0
-    with torch.no_grad():
-        # iterate over the validation dataloader
-        for batch in valid_loader:
-            # move the batch to the appropriate device
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
+    gc.collect()
+    torch.cuda.empty_cache()
+    # compute the validation loss of the epoch
+    avg_loss = total_loss / (len(valid_loader)*batch_size)
+    # reshape the predictions in form of (number of samples, no. of classes)
+    total_preds = np.concatenate(total_preds, axis=0)
+    return avg_loss, total_preds
 
-            # forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+# set initial loss to infinite
+best_valid_loss = float('inf')
 
-            # compute the loss and accuracy
-            loss = loss_fn(outputs.logits, labels)
-            valid_loss += loss.item() * input_ids.size(0)
-            valid_acc += (outputs.logits.argmax(1) == labels).sum().item()
+epochs = 3
+current = 1
+# for each epoch
+while current <= epochs:
 
-    # normalize the validation metrics by the size of the validation set
-    valid_loss /= len(val_data)
-    valid_acc /= len(val_data)
+    print(f'\nEpoch {current} / {epochs}:')
 
-    # print the validation metrics
-    print(f"Epoch [{epoch+1}/{num_epochs}], Valid Loss: {valid_loss:.4f}, Valid Acc: {valid_acc:.4f}")
+    # train model
+    train_loss, _ = train()
 
-# evaluate the model on the test set
-test_loss = 0.0
-test_acc = 0.0
+    # evaluate model
+    valid_loss, _ = evaluate()
+
+    # save the best model
+    if valid_loss < best_valid_loss:
+        best_valid_loss = valid_loss
+
+    print(f'\n\nTraining Loss: {train_loss:.3f}')
+    print(f'Validation Loss: {valid_loss:.3f}')
+
+    current = current + 1
+
+# get predictions for test data
+gc.collect()
+torch.cuda.empty_cache()
+
 with torch.no_grad():
-    # iterate over the test dataloader
-    for batch in test_loader:
-        # move the batch to the appropriate device
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        labels = batch['labels'].to(device)
-
-        # forward pass
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-
-        # compute the loss and accuracy
-        loss = loss_fn(outputs.logits, labels)
-        test_loss += loss.item() * input_ids.size(0)
-        test_acc += (outputs.logits.argmax(1) == labels).sum().item()
+    preds = model(test_seq.to(device), test_mask.to(device))
+    preds = preds.detach().cpu().numpy()
 
 
-# normalize the test metrics by the size of the test set
-test_loss /= len(test_dataset)
-test_acc /= len(test_dataset)
+print("Performance:")
+# model's performance
+preds = np.argmax(preds, axis=1)
+print('Classification Report')
+print(classification_report(test_y, preds))
 
-# print the test metrics
-print(f"Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}")
+print("Accuracy: " + str(accuracy_score(test_y, preds)))

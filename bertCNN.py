@@ -11,13 +11,12 @@ class BertCNN(nn.Module):
     def __init__(self, num_classes, dropout_prob):
         super(BertCNN, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=32, out_channels=13, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=1)
         self.dropout1 = nn.Dropout(dropout_prob)
-        self.fc1 = nn.Linear(in_features=32 * 32 * 6, out_features=1)
-        self.dropout2 = nn.Dropout(dropout_prob)
-        self.fc2 = nn.Linear(in_features=1, out_features=num_classes)
+        self.fc = nn.Linear(442, 3)
+        self.flat = nn.Flatten()
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input_ids, attention_mask):
         # Pass input_ids and attention_mask to BERT model
