@@ -1,5 +1,6 @@
 import torch
 from bertCNN import BertCNN
+print(torch.zeros(1).cuda())
 
 # Create an instance of the model
 model = BertCNN(num_classes=3, dropout_prob=0.1)

@@ -13,7 +13,7 @@ from preprocessingdata import load_process_data
 
 # Define the training parameters
 num_classes = 7
-batch_size = 32
+batch_size = 8
 learning_rate = 2e-5
 warmup_ratio = 0.1
 dropout_prob = 0.1
@@ -53,8 +53,7 @@ test_y = torch.tensor(test_labels.tolist())
 model = BertCNN(num_classes=num_classes, dropout_prob=dropout_prob)
 
 # Set the device
-device = torch.device('cuda')
-print(device)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
 # Define the optimizer and scheduler
@@ -101,11 +100,19 @@ def train():
     total_loss, total_accuracy = 0, 0
 
     # empty list to save model predictions
-    total_preds = np.array([])
+    total_preds = []
+
+    # iterate over batches
+    total = len(train_loader)
 
     # iterate over the training dataloader
     for i, batch in enumerate(train_loader):
         step = i+1
+        percent = "{0:.2f}".format(100 * (step / float(total)))
+        lossp = "{0:.2f}".format(total_loss/(total*batch_size))
+        filledLength = int(100 * step // total)
+        bar = '█' * filledLength + '>'  *(filledLength < 100) + '.' * (99 - filledLength)
+        print(f'\rBatch {step}/{total} |{bar}| {percent}% complete, loss={lossp}, accuracy={total_accuracy}', end='')
         batch = [r.to(device) for r in batch]
         sent_id, mask, labels = batch
         del batch
@@ -113,9 +120,7 @@ def train():
         torch.cuda.empty_cache()
         # clear previously calculated gradients
         model.zero_grad()
-        # forward pass
-        print("FORWARD SHAPES:")
-        print(sent_id)
+
         preds = model(sent_id.to(device).long(), mask)
         
         # compute the loss
@@ -133,19 +138,19 @@ def train():
 
         # model predictions are stored on GPU. So, push it to CPU
         # append the model predictions
-        total_preds = np.append(preds.detach().cpu().numpy())
+        total_preds.append(preds.detach().cpu().numpy())
 
-        gc.collect()
-        torch.cuda.empty_cache()
+    gc.collect()
+    torch.cuda.empty_cache()
 
         
 
-        # compute the training loss of the epoch
-        avg_loss = total_loss / (len(train_loader)*batch_size)
+    # compute the training loss of the epoch
+    avg_loss = total_loss / (len(train_loader)*batch_size)
 
-        # predictions are in the form of (no. of batches, size of batch, no. of classes).
-        # reshape the predictions in form of (number of samples, no. of classes)
-        total_preds = np.concatenate(total_preds, axis=0)
+    # predictions are in the form of (no. of batches, size of batch, no. of classes).
+    # reshape the predictions in form of (number of samples, no. of classes)
+    total_preds = np.concatenate(total_preds, axis=0)
 
         # returns the loss and predictions
     return avg_loss, total_preds
