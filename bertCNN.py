@@ -2,7 +2,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from transformers import BertModel
+from config import readconfig
 
+
+print('attention_probs_dropout_prob: ', readconfig.get_bert_config_value('attention_probs_dropout_prob'))
+  
 class BertCNN(nn.Module):
     def __init__(self, num_classes):
         super(BertCNN, self).__init__()
@@ -10,8 +14,8 @@ class BertCNN(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Linear(in_features=32 * 7 * 7, out_features=64)
-        self.fc2 = nn.Linear(in_features=64, out_features=num_classes)
+        self.fc1 = nn.Linear(in_features=32 * 32 * 6, out_features=1)
+        self.fc2 = nn.Linear(in_features=1, out_features=num_classes)
 
     def forward(self, input_ids, attention_mask):
         # Pass input_ids and attention_mask to BERT model
@@ -26,7 +30,8 @@ class BertCNN(nn.Module):
         x = nn.functional.relu(x)
         x = self.pool(x)
         # Flatten the output of the convolutional layers
-        x = x.view(-1, 32 * 7 * 7)
+        print('x.shape: ', x.shape)
+        x = x.view(x.size(0), -1)
         # Pass the output through fully connected layers
         x = self.fc1(x)
         x = nn.functional.relu(x)
