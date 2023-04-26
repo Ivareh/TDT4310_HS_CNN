@@ -53,7 +53,7 @@ test_y = torch.tensor(test_labels.tolist())
 model = BertCNN(num_classes=num_classes, dropout_prob=dropout_prob)
 
 # Set the device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda')
 print(device)
 model.to(device)
 
@@ -101,7 +101,7 @@ def train():
     total_loss, total_accuracy = 0, 0
 
     # empty list to save model predictions
-    total_preds = []
+    total_preds = np.array([])
 
     # iterate over the training dataloader
     for i, batch in enumerate(train_loader):
@@ -133,7 +133,7 @@ def train():
 
         # model predictions are stored on GPU. So, push it to CPU
         # append the model predictions
-        total_preds.append(preds.detach().cpu().numpy())
+        total_preds = np.append(preds.detach().cpu().numpy())
 
         gc.collect()
         torch.cuda.empty_cache()
