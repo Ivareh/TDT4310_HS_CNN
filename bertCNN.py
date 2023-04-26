@@ -8,13 +8,15 @@ from config import readconfig
 print('attention_probs_dropout_prob: ', readconfig.get_bert_config_value('attention_probs_dropout_prob'))
   
 class BertCNN(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, dropout_prob):
         super(BertCNN, self).__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.dropout1 = nn.Dropout(dropout_prob)
         self.fc1 = nn.Linear(in_features=32 * 32 * 6, out_features=1)
+        self.dropout2 = nn.Dropout(dropout_prob)
         self.fc2 = nn.Linear(in_features=1, out_features=num_classes)
 
     def forward(self, input_ids, attention_mask):
@@ -33,7 +35,9 @@ class BertCNN(nn.Module):
         print('x.shape: ', x.shape)
         x = x.view(x.size(0), -1)
         # Pass the output through fully connected layers
+        x = self.dropout1(x)
         x = self.fc1(x)
         x = nn.functional.relu(x)
+        x = self.dropout2(x)
         x = self.fc2(x)
         return x

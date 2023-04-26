@@ -93,4 +93,6 @@ Input feature length of 1014
 
 Fine tuning
  - Lower levels of BERT model may contain general info, where higher is more task specific
- - 
+ 
+ 
+Use stratified sampling for prevent overfitting

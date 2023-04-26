@@ -2,7 +2,7 @@ import torch
 from bertCNN import BertCNN
 
 # Create an instance of the model
-model = BertCNN(num_classes=3)
+model = BertCNN(num_classes=3, dropout_prob=0.1)
 
 # Load an example input
 input_ids = torch.tensor([[101, 2023, 2003, 1037, 2024, 2172, 102]])
